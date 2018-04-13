@@ -1,0 +1,254 @@
+{% extends "base.html" %} {% block page_content %}
+
+<link href="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.css') }}" rel="stylesheet">
+<script src="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.js' )}}"></script>
+<script src="{{ url_for('static', filename='bootstrap-table/locale/bootstrap-table-zh-CN.min.js') }}"></script>
+<script src="{{ url_for('static', filename='moment.min.js') }}"></script>
+<script src="{{ url_for('static', filename='moment-timezone-with-data.min.js') }}"></script>
+
+<div class="row-fluid">
+    <div class="col-md-12">
+        <div class="alert"></div>
+        <table calss="table table-condensed" id="table"></table>
+    </div>
+</div>
+
+<!-- 模拟框 -->
+<div id="modal" class="modal fade">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title">服务器</h4>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>主机名称</label>
+                    <input type="text" class="form-control" name="name" id="name" placeholder="Name">
+                </div>
+                <div class="form-group">
+                    <label>ip地址</label>
+                    <input type="text" class="form-control" name="ip" id="ip" placeholder="ip">
+                </div>
+                <div class="form-group">
+                    <label>端口</label>
+                    <input type="text" class="form-control" name="port" id="port" placeholder="port">
+                </div>
+                <div class="form-group">
+                    <label>登录密码</label>
+                    <input type="text" class="form-control" name="password" id="password" placeholder="password">
+                </div>
+                <div class="form-group">
+                    <label>状态</label>
+                    <input type="radio" name="status" id="status" value="1" checked="checked">
+                    <span class="label label-success">启用</span>
+                    <input type="radio" name="status" id="status" value="0">
+                    <span class="label label-warning">停用</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-success submit">提交</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 模拟框 -->
+
+<script>
+    var $modal = $('#modal').modal({ show: false }),
+        $alert = $('.alert').hide();
+
+    var url = 'http://127.0.0.1/admin/api/host',
+        toolbar =
+            '<div class="toolbar"> ' +
+            '    <button class="create btn btn-default" href="javascript:">新建</button>' +
+            '    <button class="update btn btn-default" href="javascript:" disabled="disabled">更新</button>' +
+            '    <button class="delete btn btn-default" href="javascript:" disabled="disabled">删除</button>' +
+            '</div>';
+
+    var $table = $('#table').bootstrapTable({
+        locale: 'zh-CN',
+        method: 'GET',
+        url: url,
+        cache: false,
+        pagination: true,
+        pageSize: 15,
+        pageNumber: 1,
+        pageList: [15, 50, 100, 'All'],
+        // search: true,
+        // searchOnEnterKey: true,  // 回车触发搜索
+        // strictSearch: true,      // 启用全局搜索
+        showRefresh: true,       // 开启刷新按钮
+        showColumns: true,
+        // showFullscreen: true,    // 开启全屏按钮
+        toolbar: toolbar,
+        clickToSelect: true,
+        singleSelect: true, // 仅允许选择1行
+        idField: 'uuid',
+        sortName: 'name',
+        sortOrder: 'asc',
+        // detailView: true,
+        // detailFormatter: function(index, row) {};
+        columns: [ // 列名
+            { checkbox: true, width: '1%' },
+            { field: 'uuid', title: 'uuid', align: 'center', valign: 'middle', width: '15%', visible: false },
+            { field: 'name', title: '主机名称', align: 'center', valign: 'middle', width: '10%', sortable: true },
+            { field: 'ip', title: 'ip地址', align: 'center', valign: 'middle', width: '10%', sortable: true },
+            { field: 'port', title: '端口', align: 'center', valign: 'middle', width: '10%', sortable: false },
+            { field: '', title: '复制集', align: 'center', valign: 'middle', width: '10%', sortable: false },
+            { field: '', title: 'sentinel', align: 'center', valign: 'middle', width: '10%', sortable: false },
+            { field: 'password', title: '登录密码', align: 'center', valign: 'middle', width: '10%', visible: false },
+            {
+                field: 'last_check_time', title: '最后检测时间', align: 'center', valign: 'middle', width: '10%', sortable: true,
+                formatter: function (value, row, index) {
+                    if (value == null) {
+                        return '';
+                    } else {
+                        var beijing = moment.tz(new Date(value), 'Asia/Shanghai');
+                        return beijing.format('YYYY-MM-DD HH:mm:ss');
+                    } frames
+                }
+            },
+            {
+                field: 'create_time', title: '建立时间', align: 'center', valign: 'middle', width: '10%', visible: false,
+                formatter: function (value, row, index) {
+                    if (value == null) {
+                        return '';
+                    } else {
+                        var beijing = moment.tz(new Date(value), 'Asia/Shanghai');
+                        return beijing.format('YYYY-MM-DD HH:mm:ss');
+                    } frames
+                }
+            },
+            {
+                field: 'update_time', title: '更新时间', align: 'center', valign: 'middle', width: '10%', visible: false,
+                formatter: function (value, row, index) {
+                    if (value == null) {
+                        return '';
+                    } else {
+                        var beijing = moment.tz(new Date(value), 'Asia/Shanghai');
+                        return beijing.format('YYYY-MM-DD HH:mm:ss');
+                    } frames
+                }
+            },
+            {
+                field: 'status', title: '监测', align: 'center', valign: 'middle', width: '5%',
+                formatter: function (value, row, index) {
+                    if (value == 0) {
+                        return '<span class="label label-warning">禁用</span>';
+                    } else {
+                        return '<span class="label label-success">启用</span>';
+                    }
+                }
+            },
+        ]
+    });
+
+    $(function () {
+        // 显示模拟框
+        function showModal(title, row) {
+            $modal.find('.modal-title').text(title);
+
+            // 如果是变更，填充数据
+            if (row != undefined) {
+                $modal.data('uuid', row.uuid); // 设置modal变量uuid
+                $('#name').val(row.name);
+                $('#ip').val(row.ip);
+                $('#port').val(row.port);
+                $('#password').val(row.password);
+                $('input[name=status]').each(function (idx, d) {
+                    ($(this).val() == row.status) ? $(this).prop('checked', true) : $(this).prop('checked', false);
+                });
+            }
+
+            $modal.modal('show');
+        }
+
+        // 显示警示框
+        function showAlert(title, type) {
+            $alert.attr('class', 'alert alert-' + type || 'success')
+                .html('<i class="glyphicon glyphicon-check"></i> ' + title).show();
+            setTimeout(function () {
+                $alert.hide();
+            }, 3000);
+        }
+
+        // 新键按钮事件
+        $('.create').click(function () {
+            showModal($(this).text());
+        });
+
+        // 行选中&反选事件
+        $table.on('check.bs.table', function (e, row, $element) {
+            $('.update').prop('disabled', false);
+            $('.delete').prop('disabled', false);
+        }).on('uncheck.bs.table', function (e, row, $element) {
+            $('.update').prop('disabled', true);
+            $('.delete').prop('disabled', true);
+        });
+
+        // 变更按钮事件
+        $('.update').click(function () {
+            // 获取选中行所有值
+            var row = $table.bootstrapTable('getSelections');
+            showModal($(this).text(), row[0]); // 仅1行
+        });
+
+        // 提交按钮事件
+        $('.submit').click(function () {
+            var data = {
+                name: $('#name').val(),
+                ip: $('#ip').val(),
+                port: $('#port').val(),
+                password: $('#password').val(),
+                status: $('input[name=status]:checked').val(),
+            };
+
+            if ($modal.data('uuid')) {
+                data['uuid'] = $modal.data('uuid');
+            };
+
+            $.ajax({
+                url: url,
+                type: $modal.data('uuid') ? 'PUT' : 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function () {
+                    $modal.modal('hide');
+                    $table.bootstrapTable('refresh');
+                    showAlert(($modal.data('uuid') ? '更新' : '新建') + '成功', 'success');
+                },
+                error: function () {
+                    $modal.modal('hide');
+                    showAlert(($modal.data('uuid') ? '更新' : '新建') + '失败', 'danger');
+                }
+            });
+        });
+
+        // 删除按钮事件
+        $('.delete').click(function () {
+            // 获取选中行所有值
+            var row = $table.bootstrapTable('getSelections');
+
+            if (confirm('请确认删除此条数据？')) {
+                $.ajax({
+                    url: url + '?uuid=' + row[0].uuid, // 仅1行
+                    type: 'DELETE',
+                    success: function () {
+                        $table.bootstrapTable('refresh');
+                        showAlert('删除成功', 'success');
+                    },
+                    error: function () {
+                        showAlert('删除失败', 'danger');
+                    }
+                })
+            }
+        });
+
+    });
+
+</script>
+</script> {% endblock %}
