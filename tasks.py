@@ -18,13 +18,19 @@ import logging
 from app import db
 from app.models import Host
 
+
+# https://github.com/soarpenguin/python-scripts/blob/master/redis-monitor.py
+# https://docs.signalfx.com/en/latest/integrations/agent/monitors/collectd-redis.html
+# https://github.com/powdahound/redis-collectd-plugin
+# https://github.com/signalfx/integrations/tree/master/collectd-redis
+
 celery = Celery()
 celery.config_from_object(celeryconfig)
 
 celery.conf.beat_schedule = {
     'get_performance_info': {
         'task': 'tasks.performance',
-        'schedule': 10,
+        'schedule': 300,
     }
 }
 
@@ -83,27 +89,17 @@ def get_info():
     return None
 
 def create_rrd(rrd_file, datasource):
-    ds = [ 'DS:%s:GAUGE:120:0:U' % datasource ]
+    step = 60
+    ds = [ 'DS:%s:GAUGE:%d:0:U' % (datasource, 60*5) ]
     rra = [
-        'RRA:AVERAGE:0.5:1:1440',  # 60s * 1 * 1440 = 24h
-        'RRA:AVERAGE:0.5:15:672',  # 60s * 15 * 672 = 7d
-        'RRA:AVERAGE:0.5:60:744',  # 60s * 60 * 744 = 31d
-        'RRA:AVERAGE:0.5:1440:375', # 60s * 1440 * 375 = 375d
-        'RRA:MIN:0.5:1:1440', 
-        'RRA:MIN:0.5:15:672',
-        'RRA:MIN:0.5:60:744',
-        'RRA:MIN:0.5:1440:375',
-        'RRA:MAX:0.5:1:1440', 
-        'RRA:MAX:0.5:15:672',
-        'RRA:MAX:0.5:60:744',
-        'RRA:MAX:0.5:1440:375',
-        'RRA:LAST:0.5:1:1440', 
-        'RRA:LAST:0.5:15:672',
-        'RRA:LAST:0.5:60:744',
-        'RRA:LAST:0.5:1440:375',
+        'RRA:AVERAGE:0.5:1:720',      # 1m一个点存12h  step(60s) * 1 * 720 / 3600 = 12h 
+        'RRA:AVERAGE:0.5:5:576',      # 5m一个点存2d   
+        'RRA:AVERAGE:0.5:20:504',     # 20m一个点存7d
+        'RRA:AVERAGE:0.5:180:766',    # 3h一个点存3month
+        'RRA:AVERAGE:0.5:720:730',    # 12h一个点存1year step(60s) *720 * 730 / 3600 / 24 / 365 = 1y
     ]
     
-    rrdtool.create(rrd_file, '--step', '60', '--start', '-1y', ds, rra)
+    rrdtool.create(rrd_file, '--step', str(step), '--start', '-1y', ds, rra)
     logger.info('建立 %s 数据文件' % rrd_file)
 
 def update_rrd(path, datasource, value):

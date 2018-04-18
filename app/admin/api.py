@@ -31,8 +31,8 @@ def get_host():
     else:
         data = {'message': '请求参数异常'}
 
-    #return jsonify(data)
-    
+    # return jsonify(data)
+
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -63,8 +63,8 @@ def add_host():
     else:
         data = {'message': '请求数据异常'}
 
-    #return jsonify(data)
-    
+    # return jsonify(data)
+
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -94,12 +94,13 @@ def update_host():
     else:
         data = {'message': '请求数据异常'}
 
-    #return jsonify(data)
-    
+    # return jsonify(data)
+
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
+
 
 @bp.route('/api/host', methods=['DELETE'])
 def delete_host():
@@ -121,55 +122,60 @@ def delete_host():
     else:
         data = {'message': '请求参数异常'}
 
-    #return jsonify(data)
-    
+    # return jsonify(data)
+
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
+
 @bp.route('/api/performance', methods=['GET'])
 def get_performance():
-    if request.args['host'] and request.args['datasource'] and request.args['start'] and request.args['end']:
+    if request.args['host'] and request.args['metric'] and request.args['start'] and request.args['end']:
         host = request.args['host']
-        datasource = request.args['datasource']
-        start = int(request.args['start'])
-        end = int(request.args['end'])
+        metric = request.args['metric']
+        resolution = request.args.get('resolution', '60')
+        start = request.args['start']
+        # 延迟60秒
+        end = str(int(request.args['end']) - 60)
 
         path = os.path.join(config.DATA_PATH, host)
-        rrd_file = os.path.join(path, '%s.rrd' % datasource)
-
-        # 解析度
-        if end-start > 0 and end-start <= 3600*6:  # <=6小时
-            resolution = 3600*0.5
-        elif end-start > 3600*6 and end-start <= 3600*24:  # 6～24小时
-            resolution = 3600*1
-        elif end-start > 86400 and end-start <= 86400*7:  # 1～7天
-            resolution = 3600*3
-        elif end-start > 86400*7 and end-start <= 86400*30:  # 7～30天
-            resolution = 3600*12
-        elif end-start > 86400*30 and end-start <= 86400*60:  # 30～60天
-            resolution = 86400*2
-        elif end-start > 86400*60 and end-start <= 86400*180:  # 60～180天
-            resolution = 86400*6
-        elif end-start > 86400*180 and end-start <= 86400*360:  # 180～360天
-            resolution = 86400*30
+        rrd_file = os.path.join(path, '%s.rrd' % metric)
 
         # 读取rrd数据文件
         try:
-            time_range, none, values = rrdtool.fetch(rrd_file, 'AVERAGE', '--resolution', str(int(resolution)), '--start', str(start), '--end', str(end))
+            time_range, none, values = rrdtool.fetch(
+                rrd_file, 'AVERAGE', '--resolution', resolution, '--start', start, '--end', end)
 
             # 生成数据
-            timestamps = [i for i in range(time_range[0], time_range[1], time_range[2])]
-            data = [i for i in map(lambda x, y: {'x': datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S'), 'y': y[0]}, timestamps, values)]
+            timestamps = [i for i in range(
+                time_range[0], time_range[1], time_range[2])]
+            data = [i for i in map(lambda x, y: {'x': datetime.fromtimestamp(
+                x).strftime('%Y-%m-%d %H:%M:%S'), 'y': y[0]}, timestamps, values)]
         except rrdtool.OperationalError as e:
             data = {'message': '请求数据异常'}
 
     else:
         data = {'message': '请求参数异常'}
 
-    #return jsonify(data)
-    
+    # return jsonify(data)
+
+    # 支持跨域
+    response = make_response(jsonify(data))
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
+@bp.route('/api/jstree', methods=['GET'])
+def get_jstree():
+    hosts = Host.query.all()
+
+    data = [{'id': q.uuid, 'parent': '#', 'text': q.name, 'status': q.status}
+            for q in hosts]
+
+    # return jsonify(data)
+
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
