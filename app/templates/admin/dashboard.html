@@ -6,7 +6,7 @@
 <script src="{{ url_for('static', filename='bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js' )}}"></script>
 <script src="{{ url_for('static', filename='bootstrap-datetimepicker/js/locales/bootstrap-datetimepicker.zh-CN.js' )}}"></script>
 <script src="{{ url_for('static', filename='moment.min.js' )}}"></script>
-<script src="{{ url_for('static', filename='Chart.min.js' )}}"></script>
+<script src="{{ url_for('static', filename='Chart.min.js' )}}"></script> {{ host.uuid }} {{ host.ip }}
 
 <!-- 导航树区域 -->
 <div class="col-md-2" id="jstree"></div>
@@ -60,25 +60,21 @@
           },
           /*
           dataFilter: function (data, type) {
-            // 第1项默认选中
+            // 数据进行渲染
             var tmp = JSON.parse(data);
-            $.each(tmp, function (i, v) {
-              if (i == 0) {
-                v['state'] = { 'selected': true };
-              }
-            });
-
             return JSON.stringify(tmp);
           }*/
         }
       }
-    });
-
-    // jstree事件
-    $('#jstree').on("select_node.jstree", function (e, data) {
+    }).on('loaded.jstree', function (e, data) { // // 默认选中根节点
+      var inst = data.instance;
+      var obj = inst.get_node(e.target.firstChild.firstChild.lastChild);
+      inst.select_node(obj);
+    }).on("select_node.jstree", function (e, data) { // 节点选中事件
+      // 调用性能图区域生成函数 
       var host = data.selected[0];
       console.log(host);
-      // 调用性能图区域生成函数 create_graph_area(host)
+      //create_graph_area(host)
     });
 
     // 生成性能图区域

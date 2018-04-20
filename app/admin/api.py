@@ -170,10 +170,7 @@ def get_performance():
 @bp.route('/api/jstree', methods=['GET'])
 def get_jstree():
     hosts = Host.query.all()
-
     data = [{'id': q.ip, 'parent': '#', 'text': q.name} for q in hosts if q.status==1]
-
-    data[0]['state'] = {'selected': 1}
 
     # return jsonify(data)
 
