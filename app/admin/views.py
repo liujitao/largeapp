@@ -2,6 +2,8 @@
 
 from flask import render_template, redirect, url_for
 from app.admin import bp
+from app.models import Host
+
 
 @bp.route('/', methods=['GET'])
 def index():

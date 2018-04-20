@@ -171,8 +171,9 @@ def get_performance():
 def get_jstree():
     hosts = Host.query.all()
 
-    data = [{'id': q.uuid, 'parent': '#', 'text': q.name, 'status': q.status}
-            for q in hosts if q.status==1]
+    data = [{'id': q.ip, 'parent': '#', 'text': q.name} for q in hosts if q.status==1]
+
+    data[0]['state'] = {'selected': 1}
 
     # return jsonify(data)
 
