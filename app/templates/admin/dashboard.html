@@ -25,7 +25,7 @@
         <button type="button" class="btn btn-default" role="group" value="31*24*3600">1月</button>
         <button type="button" class="btn btn-default" role="group" value="7*24*3600">1周</button>
         <button type="button" class="btn btn-default" role="group" value="24*3600">1天</button>
-        <button type="button" class="active btn btn-default" role="group" value="6*3600">6小时</button>
+        <button type="button" class="active btn btn-default" role="group" value="3*3600">3小时</button>
       </div>
     </div>
   </div>
@@ -54,13 +54,13 @@
           },
           dataFilter: function (data, type) {
             var tmp = JSON.parse(data);
-            $.each(tmp, function(i,v){
-              if (v.status == 0){
-                v['state'] = {'disabled': true};
+            $.each(tmp, function (i, v) {
+              if (v.status == 0) {
+                v['state'] = { 'disabled': true };
               }
               delete v.status;
             });
-            
+
             return JSON.stringify(tmp);
           }
         }
@@ -81,6 +81,9 @@
     var end_time = start_and_end_time()[0];
     var start_time = start_and_end_time()[1];
 
+    var host = '115.159.79.192';
+    var metric = 'counter-commands_processed';
+
     // 开始时间初始化
     $('#start_time').datetimepicker({
       autoclose: true,
@@ -90,9 +93,9 @@
       todayBtn: 'linked',
     }).on('changeDate', function (e) {
       $('#start_time').datetimepicker('setStartDate', e.date);
-      start_time = $('#end_time').val();
+      start_time = $('#start_time').val();
       end_time = $('#end_time').val();
-      call_chart('redis-101', 'used_cpu_user', start_time, end_time);
+      call_chart(host, metric, start_time, end_time);
     });
 
     $('#start_time').prop('value', start_time);
@@ -108,14 +111,14 @@
       $('#end_time').datetimepicker('end_time', e.date);
 
       // 调用chart函数
-      start_time = $('#end_time').val();
+      start_time = $('#start_time').val();
       end_time = $('#end_time').val();
-      call_chart('redis-101', 'used_cpu_user', start_time, end_time);
+      call_chart(host, metric, start_time, end_time);
     });
 
     $('#end_time').prop('value', end_time);
 
-    call_chart('redis-101', 'used_cpu_user', start_time, end_time);
+    call_chart(host, metric, start_time, end_time);
 
     // 按钮组事件
     $(".btn-group > .btn").click(function () {
@@ -128,13 +131,13 @@
       $('#end_time').prop('value', end_time);
 
       // 调用chart函数
-      call_chart('redis-101', 'used_cpu_user', start_time, end_time);
+      call_chart(host, metric, start_time, end_time);
     });
 
     function call_chart(host, metric, start_time, end_time) {
 
       var start_time = moment(start_time).format('X');
-      var end_time = moment(end_time).format('X');
+      var end_time = moment(end_time).subtract(60, 'seconds').format('X');
 
       // chart
       var chartColors = [
@@ -149,36 +152,41 @@
 
       var unit;
       var resolution;
-      var delta = parseInt(end_time) - parseInt(start_time);
 
-      if (delta <= 3600 * 3) { // 3小时内
+      var delta = eval(end_time - start_time);
+
+      if (delta <= 3600 * 3) { // 3小时以下
         unit = 'minute';
         resolution = 60 * 5;
-      } else if (3600 * 3 < delta <= 3600 * 12) { // 3 - 12小时 
+      } else if (delta > 3600 * 3 && delta <= 3600 * 24) {  // 3-24小时
         unit = 'hour';
-        resolution = 60 * 15;
-      } else if (3600 * 12 < delta <= 3600 * 24) {  // 12 -24小时
-        unit = 'hour';
-        resolution = 60 * 60;
-      } else if (3600 * 24 * 1 < delta <= 3600 * 24 * 7) {  // 1 -7天
+        resolution = 60 * 30;
+      } else if (delta > 3600 * 24 && delta <= 3600 * 24 * 7) {  // 1-7天
         unit = 'day';
-        resolution = 60 * 60 * 3;
-      } else if (3600 * 24 * 7 < delta <= 3600 * 24 * 60) {  // 7 -60天
+        resolution = 3600 * 12;
+      } else if (delta > 3600 * 24 * 7 && delta <= 3600 * 24 * 31) {  // 7-30天
         unit = 'day';
-        resolution = 60 * 60 * 24;
-      } else if (delta > 3600 * 24 * 60) {  // 60天以上
+        resolution = 3600 * 24;
+      } else if (delta > 3600 * 24 * 31 && delta <= 3600 * 24 * 180) {  // 30-180天
+        unit = 'day';
+        resolution = 3600 * 24 * 15;
+      } else if (delta > 3600 * 24 * 180) {  // 180天以上
         unit = 'month';
-        resolution = 60 * 60 * 24 * 31;
+        resolution = 3600 * 24 * 31;
       }
 
-
-      $.get('http://10.0.70.11:5000/admin/api/performance', { host: host, metric: metric, resolution: resolution, start: start_time, end: end_time }, function (data, status) {
+      $.get('http://10.0.70.103:5000/api/performance', { host: host, metric: metric, resolution: resolution, start: start_time, end: end_time }, function (data, status) {
         var ctx = document.getElementById("myChart").getContext("2d");
 
         var options = {
           responsive: true,
           maintainAspectRatio: false,
           intersect: false,
+          elements: {
+            point: {
+              radius: 0
+            }
+          },
           title: {
             display: true,
             position: 'left',
@@ -206,7 +214,7 @@
           data: {
             datasets: [
               {
-                label: 'used_cpu_user',
+                label: 'counter-commands_processed',
                 backgroundColor: chartColors[0],
                 borderColor: chartColors[0],
                 borderWidth: 1,

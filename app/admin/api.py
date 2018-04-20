@@ -172,7 +172,7 @@ def get_jstree():
     hosts = Host.query.all()
 
     data = [{'id': q.uuid, 'parent': '#', 'text': q.name, 'status': q.status}
-            for q in hosts]
+            for q in hosts if q.status==1]
 
     # return jsonify(data)
 
