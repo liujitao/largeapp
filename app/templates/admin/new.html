@@ -1,0 +1,153 @@
+{% extends "base.html" %} {% block page_content %}
+
+<link href="{{ url_for('static', filename='jstree/themes/default/style.min.css') }}" rel="stylesheet">
+<script src="{{ url_for('static', filename='jstree/jstree.min.js' )}}"></script>
+<link href="{{ url_for('static', filename='bootstrap-datetimepicker/css/bootstrap-datetimepicker.min.css') }}" rel="stylesheet">
+<script src="{{ url_for('static', filename='bootstrap-datetimepicker/js/bootstrap-datetimepicker.min.js' )}}"></script>
+<script src="{{ url_for('static', filename='bootstrap-datetimepicker/js/locales/bootstrap-datetimepicker.zh-CN.js' )}}"></script>
+<script src="{{ url_for('static', filename='moment.min.js' )}}"></script>
+<script src="{{ url_for('static', filename='Chart.min.js' )}}"></script>
+
+<!-- 导航树 -->
+<div class="col-md-2" id="jstree"></div>
+
+<div class="col-md-10">
+  <!-- 时间控制 -->
+  <div class="row">
+    <div class="col-md-4">
+      <div class="input-group input-group-sm">
+        <input type="text" class="form-control" id="start_time">
+        <div class="input-group-addon">-</div>
+        <input type="text" class="form-control" id="end_time">
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="btn-group btn-group-sm" aria-label="...">
+        <button type="button" class="btn btn-default" role="group" value="365*24*3600">1年</button>
+        <button type="button" class="btn btn-default" role="group" value="31*24*3600">1月</button>
+        <button type="button" class="btn btn-default" role="group" value="7*24*3600">1周</button>
+        <button type="button" class="btn btn-default" role="group" value="24*3600">1天</button>
+        <button type="button" class="active btn btn-default" role="group" value="3*3600">3小时</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 性能图 -->
+  <div class="row" id="chart_area"></div>
+
+</div>
+
+<script>
+  $(function () {
+    // 导航树
+    $('#jstree').jstree({
+      plugins: ['sort', 'types'],
+      types: {
+        'default': {
+          'icon': 'glyphicon glyphicon-flash'
+        }
+      },
+      core: {
+        data: {
+          url: '/admin/api/jstree',
+          data: function (node) {
+            return { 'id': node.id }
+          },
+          /*
+          dataFilter: function (data, type) {
+            // 数据进行渲染
+            var tmp = JSON.parse(data);
+            return JSON.stringify(tmp);
+          }*/
+        }
+      }
+    }).on('loaded.jstree', function (e, data) { // // 默认选中根节点
+      var inst = data.instance;
+      var obj = inst.get_node(e.target.firstChild.firstChild.lastChild);
+      inst.select_node(obj);
+    }).on("select_node.jstree", function (e, data) { // 节点选中事件
+      // 调用性能图区域生成函数 
+      var host = data.selected[0];
+      console.log(host);
+      //create_graph_area(host)
+    });
+
+
+    // 时间控制
+    // 获取按钮组默认时间
+    function start_and_end_time(dlta) {
+      var delta = eval($('.btn-group > .active').val());
+      return [moment().format('YYYY-MM-DD HH:mm:ss'), moment().subtract(delta, 'seconds').format('YYYY-MM-DD HH:mm:ss')];
+    };
+
+    var end_time = start_and_end_time()[0];
+    var start_time = start_and_end_time()[1];
+
+    var host = '115.159.79.192';
+    var metric = 'counter-commands_processed';
+
+    // 开始时间初始化
+    $('#start_time').datetimepicker({
+      autoclose: true,
+      language: 'zh-CN',
+      format: 'yyyy-mm-dd hh:ii:ss',
+      weekStart: 1,
+      todayBtn: 'linked',
+    }).on('changeDate', function (e) {
+      $('#start_time').datetimepicker('setStartDate', e.date);
+      start_time = $('#start_time').val();
+      end_time = $('#end_time').val();
+      // call_chart(host, metric, start_time, end_time);
+    });
+    $('#start_time').prop('value', start_time);
+
+    // 结束时间初始化
+    $('#end_time').datetimepicker({
+      autoclose: true,
+      language: 'zh-CN',
+      format: 'yyyy-mm-dd hh:ii:ss',
+      weekStart: 1,
+      todayBtn: 'linked',
+    }).on('changeDate', function (e) {
+      $('#end_time').datetimepicker('end_time', e.date);
+
+      // 调用chart函数
+      start_time = $('#start_time').val();
+      end_time = $('#end_time').val();
+      call_chart(host, metric, start_time, end_time);
+    });
+    $('#end_time').prop('value', end_time);
+
+    // 按钮组事件
+    $(".btn-group > .btn").click(function () {
+      $(".btn-group > .btn").removeClass("active");
+      $(this).addClass("active");
+
+      var end_time = start_and_end_time()[0];
+      var start_time = start_and_end_time()[1];
+      $('#start_time').prop('value', start_time);
+      $('#end_time').prop('value', end_time);
+
+      // 调用chart函数
+      // call_chart(host, metric, start_time, end_time);
+    });
+
+
+    // 性能图
+    var perf = [
+      { id: 'client', 'title': '客户端连接', 'item': ['gauge-connected_clients', 'gauge-blocked_clients'] },
+      { id: 'memory', 'title': '内存使用量', 'item': ['bytes-used_memory', 'bytes-used_memory_rss'] },
+      { id: 'fragmentation', 'title': '内存碎片率', 'item': ['gauge-mem_fragmentation_ratio'] },
+      { id: 'instantaneous', 'title': '每秒处理指令数', 'item': ['gauge-instantaneous_ops_per_sec'] },
+      { id: 'processe', 'title': '命令处理总量', 'item': ['counter-commands_processed'] },
+      { id: 'keys', 'title': 'keys', 'item': ['counter-expired_keys', 'counter-evicted_keys'] },
+      { id: 'keyspace', 'title': 'keyspace', 'item': ['derive-keyspace_hits', 'derive-keyspace_misses'] }
+    ];
+
+    for (var i=0; i < perf.length; i++) {
+      // 填充html
+      $('#chart_area').append('<div class="row chart-container"><canvas id="chart_' + perf[i].id + '"></canvas></div>');
+    };
+
+  });
+</script> {% endblock %}

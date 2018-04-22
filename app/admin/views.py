@@ -7,11 +7,12 @@ from app.models import Host
 
 @bp.route('/', methods=['GET'])
 def index():
-    if request.args:
-        host = Host.query.filter(Host.uuid==request.args['uuid']).first()
-    else:
-        host = Host.query. filter(Host.status==1).first()
-    return render_template('admin/dashboard.html', host=host)
+    return render_template('admin/dashboard.html')
+
+@bp.route('/new', methods=['GET'])
+def new():
+    return render_template('admin/new.html')
+
 
 @bp.route('/host', methods=['GET'])
 def host():
