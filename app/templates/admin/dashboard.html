@@ -99,7 +99,7 @@
         var host = jstree.get_selected()[0];
 
         // 获取时间
-        var start_time =$('#start_time').val();
+        var start_time = $('#start_time').val();
         var end_time = $('#end_time').val();
         var delta = eval(moment(end_time).format('X') - moment(start_time).format('X'));
 
@@ -110,38 +110,38 @@
 
       // 按钮组事件
       $(".btn-group > .btn").click(function () {
-          $(".btn-group > .btn").removeClass("active");
-          $(this).addClass("active");
+        $(".btn-group > .btn").removeClass("active");
+        $(this).addClass("active");
 
-          // 获取主机
-          var jstree = $('#jstree').jstree(true);
-          var host = jstree.get_selected()[0];
+        // 获取主机
+        var jstree = $('#jstree').jstree(true);
+        var host = jstree.get_selected()[0];
 
-          // 获取时间
-          var delta = eval($('.btn-group > .active').val());
-          var end_time = moment();
-          var start_time = moment().subtract(delta, 'seconds');
+        // 获取时间
+        var delta = eval($('.btn-group > .active').val());
+        var end_time = moment();
+        var start_time = moment().subtract(delta, 'seconds');
 
-          // 更新时间选择框
-          $('#start_time').prop('value', start_time.format('YYYY-MM-DD HH:mm:ss'));
-          $('#end_time').prop('value', end_time.format('YYYY-MM-DD HH:mm:ss'));
+        // 更新时间选择框
+        $('#start_time').prop('value', start_time.format('YYYY-MM-DD HH:mm:ss'));
+        $('#end_time').prop('value', end_time.format('YYYY-MM-DD HH:mm:ss'));
 
-          // 调用性能图区域函数
-          draw_chart_area(host, delta, start_time, end_time);
-        });
+        // 调用性能图区域函数
+        draw_chart_area(host, delta, start_time, end_time);
+      });
     };
 
     // 性能图区域
     function draw_chart_area(host, delta, start_time, end_time) {
       // 性能项
       var perf = [
-        { id: 'clients', title: '客户端连接数', yaxis: 'value', item: ['gauge-connected_clients', 'gauge-blocked_clients'] },
-        { id: 'memory', title: '内存使用量', yaxis: 'value(Byte)', item: ['bytes-used_memory', 'bytes-used_memory_rss'] },
-        { id: 'fragmentation', title: '内存碎片率', yaxis: 'value(%)', item: ['gauge-mem_fragmentation_ratio'] },
-        { id: 'instantaneous', title: '每秒处理指令数', yaxis: 'value', item: ['gauge-instantaneous_ops_per_sec'] },
-        { id: 'processed', title: '命令处理总量', yaxis: 'value', item: ['counter-commands_processed'] },
-        { id: 'keys', title: 'keys', yaxis: 'value', item: ['counter-expired_keys', 'counter-evicted_keys'] },
-        { id: 'keyspace', title: 'keyspace', yaxis: 'value', item: ['derive-keyspace_hits', 'derive-keyspace_misses'] },
+        { id: 'clients', title: '客户端连接数', yaxis: '', item: ['gauge-connected_clients', 'gauge-blocked_clients'] },
+        { id: 'memory', title: '内存使用量', yaxis: 'Byte', item: ['bytes-used_memory', 'bytes-used_memory_rss'] },
+        { id: 'fragmentation', title: '内存碎片率', yaxis: '%', item: ['gauge-mem_fragmentation_ratio'] },
+        { id: 'instantaneous', title: '每秒处理指令数', yaxis: '', item: ['gauge-instantaneous_ops_per_sec'] },
+        { id: 'processed', title: '命令处理总量', yaxis: '', item: ['counter-commands_processed'] },
+        { id: 'keys', title: 'keys', yaxis: '', item: ['counter-expired_keys', 'counter-evicted_keys'] },
+        { id: 'keyspace', title: 'keyspace', yaxis: '', item: ['derive-keyspace_hits', 'derive-keyspace_misses'] },
       ];
 
       // 画图
@@ -190,10 +190,34 @@
           title: { display: true, position: 'top', text: perf[i]['title'] },
           scales: {
             xAxes: [{
-              type: 'time', time: { unit: unit, displayFormats: { month: 'YYYY/MM', day: 'M/DD', hour: 'HH:mm', minute: 'HH:mm' } }, display: true,
+              type: 'time',
+              time: {
+                unit: unit,
+                displayFormats: { month: 'YYYY/MM', day: 'M/DD', hour: 'HH:mm', minute: 'HH:mm' }
+              },
+              display: true,
             }],
             yAxes: [{
-              stacked: true, display: true, scaleLabel: { display: true, labelString: perf[i]['yaxis'] }
+              stacked: true,
+              display: true,
+              scaleLabel: {
+                display: true,
+                labelString: perf[i]['yaxis']
+              },
+              ticks: {
+                beginAtZero: true,
+                callback: function (value) {
+                  if (value > 1000) {
+                    if (value === 0) return '0';
+                    var k = 1024; // or 1000
+                    var sizes = ['', 'K', 'M', 'G'];
+                    var i = Math.floor(Math.log(value) / Math.log(k));
+                    return (Math.round(value / Math.pow(k, i))) + ' ' + sizes[i];
+                  } else {
+                    return Math.round(value);
+                  }
+                }
+              }
             }]
           }
         };
