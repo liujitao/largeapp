@@ -8,62 +8,26 @@
 <script src="{{ url_for('static', filename='moment.min.js' )}}"></script>
 <script src="{{ url_for('static', filename='Chart.min.js' )}}"></script>
 
-<!-- 导航树区域 -->
+
 <div class="col-md-2" id="jstree"></div>
-
-<!-- 性能图区域 -->
-<div class="col-md-10" id="chart_area">
+<!-- 导航树 -->
+<div class="col-md-10">
   <!-- 时间控制 -->
-  <div class="row">
-    <div class="col-md-4">
-      <div class="input-group input-group-sm">
-        <input type="text" class="form-control" id="start_time">
-        <div class="input-group-addon">-</div>
-        <input type="text" class="form-control" id="end_time">
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="btn-group btn-group-sm" aria-label="...">
-        <button type="button" class="btn btn-default" role="group" value="365*24*3600">1年</button>
-        <button type="button" class="btn btn-default" role="group" value="31*24*3600">1月</button>
-        <button type="button" class="btn btn-default" role="group" value="7*24*3600">1周</button>
-        <button type="button" class="btn btn-default" role="group" value="24*3600">1天</button>
-        <button type="button" class="active btn btn-default" role="group" value="3*3600">3小时</button>
-      </div>
-    </div>
-  </div>
-  <!-- 时间控制 -->
-
+  <div class="row" id="time_area"></div>
   <!-- 性能图 -->
-  <div class="row chart-container">
-    <canvas id="myChart"></canvas>
-  </div>
-  <!-- 性能图 -->
-
+  <div class="row" id="chart_area"></div>
 </div>
 
 <script>
   $(function () {
-    // 导航树
+    // 导航树事件
     $('#jstree').jstree({
       plugins: ['sort', 'types'],
-      types: {
-        'default': {
-          'icon': 'glyphicon glyphicon-flash'
-        }
-      },
+      types: { 'default': { 'icon': 'glyphicon glyphicon-flash' } },
       core: {
         data: {
-          url: '/admin/api/jstree',
-          data: function (node) {
-            return { 'id': node.id }
-          },
-          /*
-          dataFilter: function (data, type) {
-            // 数据进行渲染
-            var tmp = JSON.parse(data);
-            return JSON.stringify(tmp);
-          }*/
+          url: '/admin/api/jstree', data: function (node) { return { 'id': node.id } },
+          /*dataFilter: function (data, type) { // 数据进行渲染 var tmp = JSON.parse(data); return JSON.stringify(tmp)}}*/
         }
       }
     }).on('loaded.jstree', function (e, data) { // // 默认选中根节点
@@ -71,41 +35,38 @@
       var obj = inst.get_node(e.target.firstChild.firstChild.lastChild);
       inst.select_node(obj);
     }).on("select_node.jstree", function (e, data) { // 节点选中事件
-      // 调用性能图区域生成函数 
-      var host = data.selected[0];
-      console.log(host);
-      //create_graph_area(host)
+      var host = data.node.id;
+      draw_time_area();
+
+      // 获取时间
+      var delta = eval($('.btn-group > .active').val());
+      var end_time = moment();
+      var start_time = moment().subtract(delta, 'seconds');
+
+      // 更新时间选择框
+      $('#start_time').prop('value', start_time.format('YYYY-MM-DD HH:mm:ss'));
+      $('#end_time').prop('value', end_time.format('YYYY-MM-DD HH:mm:ss'));
+
+      // 调用性能图区域函数
+      draw_chart_area(host, delta, start_time, end_time);
     });
 
-    // 生成性能图区域
-    function create_graph_area(host) {
-      // 性能指标
-      var metrics = {
-        'connected_clients': 'gauge-connected_slaves',
-        'blocked_clients': 'gauge-blocked_clients',
-        'used_memory': 'bytes-used_memory',
-        'used_memory_rss': 'bytes-used_memory_rss',
-        'mem_fragmentation_ratio': 'gauge-mem_fragmentation_ratio',
-
-        'instantaneous_ops_per_sec': 'gauge-instantaneous_ops_per_sec',
-        'total_commands_processed': 'counter-commands_processed',
-
-        'expired_keys': 'counter-evicted_keys',
-        'evicted_keys': 'counter-expired_keys',
-
-        'keyspace_hits': 'derive-keyspace_hits',
-        'keyspace_misses': 'derive-keyspace_misses',
-      };
-
-      // 时间控制
-      var control =
-        '<div class="row">' +
+    // 时间控制区域
+    function draw_time_area() {
+      var datetimepicker_html =
         '<div class="col-md-4">' +
         '<div class="input-group input-group-sm">' +
         '<input type="text" class="form-control" id="start_time">' +
         '<div class="input-group-addon">-</div>' +
         '<input type="text" class="form-control" id="end_time">' +
-        '</div></div>' +
+        '</div>';
+
+      var button_html =
+        '<div class="col-md-2">' +
+        '<button id="submit" class="btn btn-default btn-sm" type="button">确认</button>' +
+        '</div>';
+
+      var btn_group_html =
         '<div class="col-md-4">' +
         '<div class="btn-group btn-group-sm" aria-label="...">' +
         '<button type="button" class="btn btn-default" role="group" value="365*24*3600">1年</button>' +
@@ -113,182 +74,165 @@
         '<button type="button" class="btn btn-default" role="group" value="7*24*3600">1周</button>' +
         '<button type="button" class="btn btn-default" role="group" value="24*3600">1天</button>' +
         '<button type="button" class="active btn btn-default" role="group" value="3*3600">3小时</button>' +
-        '</div></div></div>';
+        '</div></div>';
 
-      // 性能图
-      var id = 'myChart';
-      var chart = '<div class="row chart-container"><canvas id="' + id + '"></canvas></div>';
+      $('#time_area').empty().append(datetimepicker_html, button_html, btn_group_html);
+
+      // 开始时间事件
+      $('#start_time').datetimepicker({ autoclose: true, language: 'zh-CN', format: 'yyyy-mm-dd hh:ii:ss', weekStart: 1, todayBtn: 'linked' })
+        .on('changeDate', function (e) {
+          // 更新时间框
+          $('#start_time').datetimepicker('update');
+        });
+
+      // 结束时间事件
+      $('#end_time').datetimepicker({ autoclose: true, language: 'zh-CN', format: 'yyyy-mm-dd hh:ii:ss', weekStart: 1, todayBtn: 'linked' })
+        .on('changeDate', function (e) {
+          // 更新时间框
+          $('#end_time').datetimepicker('update');
+        });
+
+      // 提交按钮事件
+      $("#submit").click(function () {
+        // 获取主机
+        var jstree = $('#jstree').jstree(true);
+        var host = jstree.get_selected()[0];
+
+        // 获取时间
+        var start_time =$('#start_time').val();
+        var end_time = $('#end_time').val();
+        var delta = eval(moment(end_time).format('X') - moment(start_time).format('X'));
+
+        // 调用性能图区域函数
+        console.log(host, delta, start_time, end_time);
+        draw_chart_area(host, delta, moment(start_time), moment(end_time));
+      });
+
+      // 按钮组事件
+      $(".btn-group > .btn").click(function () {
+          $(".btn-group > .btn").removeClass("active");
+          $(this).addClass("active");
+
+          // 获取主机
+          var jstree = $('#jstree').jstree(true);
+          var host = jstree.get_selected()[0];
+
+          // 获取时间
+          var delta = eval($('.btn-group > .active').val());
+          var end_time = moment();
+          var start_time = moment().subtract(delta, 'seconds');
+
+          // 更新时间选择框
+          $('#start_time').prop('value', start_time.format('YYYY-MM-DD HH:mm:ss'));
+          $('#end_time').prop('value', end_time.format('YYYY-MM-DD HH:mm:ss'));
+
+          // 调用性能图区域函数
+          draw_chart_area(host, delta, start_time, end_time);
+        });
     };
 
-    // 生成性能图
-    function create_graph() {
-
-
-
-    };
-
-    // 时间处理
-    // 获取按钮组默认时间
-    function start_and_end_time(dlta) {
-      var delta = eval($('.btn-group > .active').val());
-      return [moment().format('YYYY-MM-DD HH:mm:ss'), moment().subtract(delta, 'seconds').format('YYYY-MM-DD HH:mm:ss')];
-    };
-
-    var end_time = start_and_end_time()[0];
-    var start_time = start_and_end_time()[1];
-
-    var host = '115.159.79.192';
-    var metric = 'counter-commands_processed';
-
-    // 开始时间初始化
-    $('#start_time').datetimepicker({
-      autoclose: true,
-      language: 'zh-CN',
-      format: 'yyyy-mm-dd hh:ii:ss',
-      weekStart: 1,
-      todayBtn: 'linked',
-    }).on('changeDate', function (e) {
-      $('#start_time').datetimepicker('setStartDate', e.date);
-      start_time = $('#start_time').val();
-      end_time = $('#end_time').val();
-      call_chart(host, metric, start_time, end_time);
-    });
-
-    $('#start_time').prop('value', start_time);
-
-    // 结束时间初始化
-    $('#end_time').datetimepicker({
-      autoclose: true,
-      language: 'zh-CN',
-      format: 'yyyy-mm-dd hh:ii:ss',
-      weekStart: 1,
-      todayBtn: 'linked',
-    }).on('changeDate', function (e) {
-      $('#end_time').datetimepicker('end_time', e.date);
-
-      // 调用chart函数
-      start_time = $('#start_time').val();
-      end_time = $('#end_time').val();
-      call_chart(host, metric, start_time, end_time);
-    });
-
-    $('#end_time').prop('value', end_time);
-
-    call_chart(host, metric, start_time, end_time);
-
-    // 按钮组事件
-    $(".btn-group > .btn").click(function () {
-      $(".btn-group > .btn").removeClass("active");
-      $(this).addClass("active");
-
-      var end_time = start_and_end_time()[0];
-      var start_time = start_and_end_time()[1];
-      $('#start_time').prop('value', start_time);
-      $('#end_time').prop('value', end_time);
-
-      // 调用chart函数
-      call_chart(host, metric, start_time, end_time);
-    });
-
-    function call_chart(host, metric, start_time, end_time) {
-
-      var start_time = moment(start_time).format('X');
-      var end_time = moment(end_time).subtract(60, 'seconds').format('X');
-
-      // chart
-      var chartColors = [
-        'rgb(54, 162, 235, 0.2)', // blue
-        'rgb(75, 192, 192, 0.2)', // green
-        'rgb(255, 99, 132, 0.2)', // red
-        'rgb(255, 205, 86, 0.2)', // yellow
-        'rgb(255, 159, 64, 0.2)', // orange
-        'rgb(153, 102, 255, 0.2)', // purple
-        'rgb(231,233,237, 0.2)' // grey
+    // 性能图区域
+    function draw_chart_area(host, delta, start_time, end_time) {
+      // 性能项
+      var perf = [
+        { id: 'clients', title: '客户端连接数', yaxis: 'value', item: ['gauge-connected_clients', 'gauge-blocked_clients'] },
+        { id: 'memory', title: '内存使用量', yaxis: 'value(Byte)', item: ['bytes-used_memory', 'bytes-used_memory_rss'] },
+        { id: 'fragmentation', title: '内存碎片率', yaxis: 'value(%)', item: ['gauge-mem_fragmentation_ratio'] },
+        { id: 'instantaneous', title: '每秒处理指令数', yaxis: 'value', item: ['gauge-instantaneous_ops_per_sec'] },
+        { id: 'processed', title: '命令处理总量', yaxis: 'value', item: ['counter-commands_processed'] },
+        { id: 'keys', title: 'keys', yaxis: 'value', item: ['counter-expired_keys', 'counter-evicted_keys'] },
+        { id: 'keyspace', title: 'keyspace', yaxis: 'value', item: ['derive-keyspace_hits', 'derive-keyspace_misses'] },
       ];
 
-      var unit;
-      var resolution;
+      // 画图
+      $('#chart_area').empty();
+      for (var i = 0; i < perf.length; i++) {
+        $('#chart_area').append('<div class="row chart-container"><canvas id="chart_' + perf[i]['id'] + '"></canvas></div>');
 
-      var delta = eval(end_time - start_time);
+        var color = [
+          'rgb(54, 162, 235, 0.1)', // blue
+          'rgb(255, 99, 132, 0.1)', // red
+          'rgb(255, 205, 86, 0.1)', // yellow
+          'rgb(255, 159, 64, 0.1)', // orange
+          'rgb(153, 102, 255, 0.1)', // purple
+          'rgb(231,233,237, 0.1)', // grey
+          'rgb(75, 192, 192, 0.1)', // green
+        ];
 
-      if (delta <= 3600 * 3) { // 3小时以下
-        unit = 'minute';
-        resolution = 60 * 5;
-      } else if (delta > 3600 * 3 && delta <= 3600 * 24) {  // 3-24小时
-        unit = 'hour';
-        resolution = 60 * 30;
-      } else if (delta > 3600 * 24 && delta <= 3600 * 24 * 7) {  // 1-7天
-        unit = 'day';
-        resolution = 3600 * 12;
-      } else if (delta > 3600 * 24 * 7 && delta <= 3600 * 24 * 31) {  // 7-30天
-        unit = 'day';
-        resolution = 3600 * 24;
-      } else if (delta > 3600 * 24 * 31 && delta <= 3600 * 24 * 180) {  // 30-180天
-        unit = 'day';
-        resolution = 3600 * 24 * 15;
-      } else if (delta > 3600 * 24 * 180) {  // 180天以上
-        unit = 'month';
-        resolution = 3600 * 24 * 31;
-      }
+        var unit, resolution;
 
-      $.get('http://10.0.70.103:5000/api/performance', { host: host, metric: metric, resolution: resolution, start: start_time, end: end_time }, function (data, status) {
-        var ctx = document.getElementById("myChart").getContext("2d");
+        if (delta <= 3600 * 3) { // 3小时以下
+          unit = 'minute';
+          resolution = 60 * 5;
+        } else if (delta > 3600 * 3 && delta <= 3600 * 24) {  // 3-24小时
+          unit = 'hour';
+          resolution = 60 * 30;
+        } else if (delta > 3600 * 24 && delta <= 3600 * 24 * 7) {  // 1-7天
+          unit = 'day';
+          resolution = 3600 * 12;
+        } else if (delta > 3600 * 24 * 7 && delta <= 3600 * 24 * 31) {  // 7-30天
+          unit = 'day';
+          resolution = 3600 * 24;
+        } else if (delta > 3600 * 24 * 31 && delta <= 3600 * 24 * 180) {  // 30-180天
+          unit = 'day';
+          resolution = 3600 * 24 * 15;
+        } else if (delta > 3600 * 24 * 180) {  // 180天以上
+          unit = 'month';
+          resolution = 3600 * 24 * 31;
+        }
+
+        var ctx = $("#chart_" + perf[i]['id']);
 
         var options = {
           responsive: true,
           maintainAspectRatio: false,
           intersect: false,
-          /*
-          elements: {
-            point: {
-              radius: 0
-            }
-          },
-          */
-          title: {
-            display: true,
-            position: 'left',
-            text: '内存'
-          },
+          title: { display: true, position: 'top', text: perf[i]['title'] },
           scales: {
             xAxes: [{
-              type: 'time',
-              time: {
-                unit: unit,
-                displayFormats: { month: 'YYYY/MM', day: 'M/DD', hour: 'HH:mm', minute: 'HH:mm' }
-              },
-              display: true,
+              type: 'time', time: { unit: unit, displayFormats: { month: 'YYYY/MM', day: 'M/DD', hour: 'HH:mm', minute: 'HH:mm' } }, display: true,
             }],
             yAxes: [{
-              stacked: true,
-              display: true,
-              scaleLabel: { display: true, labelString: 'value' + ' (%)' }
+              stacked: true, display: true, scaleLabel: { display: true, labelString: perf[i]['yaxis'] }
             }]
           }
         };
 
-        var myChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            datasets: [
-              {
-                label: 'counter-commands_processed',
-                backgroundColor: chartColors[0],
-                borderColor: chartColors[0],
-                borderWidth: 1,
-                fill: true,
-                data: data
-              }
-            ]
-          },
-          options: options
+        var datasets = [];
+        $.each(perf[i]['item'], function (i, v) {
+          var tmp = {};
+
+          tmp['label'] = v.split('-')[1];
+          tmp['backgroundColor'] = color[i];
+          tmp['borderColor'] = color[i];
+          tmp['borderWidth'] = 1;
+          tmp['fill'] = true;
+
+          tmp['data'] = [];
+          $.ajax({
+            url: 'http://10.0.70.103:5000/api/performance',
+            type: 'GET',
+            dataType: 'json',
+            async: false,
+            data: { host: host, metric: v, resolution: resolution, start: start_time.format('X'), end: end_time.format('X') },
+            success: function (data) {
+              tmp['data'] = data;
+            }
+          });
+
+          datasets.push(tmp);
         });
 
-        myChart.canvas.parentNode.style.height = '250px';
-        myChart.canvas.parentNode.style.width = '1000px';
-      });
+        var chart = new Chart(ctx, {
+          type: 'line',
+          options: options,
+          data: { datasets: datasets },
+        });
 
+        chart.canvas.parentNode.style.height = '250px';
+        chart.canvas.parentNode.style.width = '1000px';
+
+      };
     };
-
   });
 </script> {% endblock %}

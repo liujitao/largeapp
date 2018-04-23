@@ -9,11 +9,6 @@ from app.models import Host
 def index():
     return render_template('admin/dashboard.html')
 
-@bp.route('/new', methods=['GET'])
-def new():
-    return render_template('admin/new.html')
-
-
 @bp.route('/host', methods=['GET'])
 def host():
     return render_template('admin/host.html')
