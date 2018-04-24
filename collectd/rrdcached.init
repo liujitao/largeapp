@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# chkconfig: 2345 19 81
+# description: rrdcached startup script
+#
+
+. /etc/rc.d/init.d/functions
+
+RETVAL=0
+
+RRDCACHED="/usr/bin/rrdcached"
+RRDCACHED_USER="root"
+PIDFILE="/var/run/rrdcached.pid"
+SOCKFILE="unix:/var/run/rrdcached.sock"
+OPTS=" -w 3600 -z 1800 -f 7200 -m 0660 -j /var/tmp -F"
+
+case "$1" in
+   start)
+      echo -n "Starting rrdcached: "
+      [ -f $RRDCACHED ] || exit 1
+
+      daemon --user=$RRDCACHED_USER $RRDCACHED $OPTS -p $PIDFILE -l $SOCKFILE
+      RETVAL=$?
+      echo
+      [ $RETVAL -eq 0 ] && touch /var/lock/subsys/rrdcached
+      ;;
+
+  stop)
+      echo -n "Shutting down rrdcached: "
+      killproc rrdcached
+      RETVAL=$?
+      echo
+      [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/rrdcached && rm -rf $PIDFILE
+      ;;
+
+  restart|reload)
+      $0 stop
+      $0 start
+      RETVAL=$?
+      ;;
+  status)
+      status rrdcached
+      RETVAL=$?
+      ;;
+  *)
+      echo "Usage: $0 {start|stop|restart|status}"
+      exit 1
+esac
+
+exit $RETVAL
