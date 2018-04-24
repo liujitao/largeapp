@@ -36,7 +36,9 @@ def get_performance():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5002, debug=True)

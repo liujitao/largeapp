@@ -36,6 +36,8 @@ def get_host():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 
@@ -68,6 +70,8 @@ def add_host():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 
@@ -99,6 +103,8 @@ def update_host():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 
@@ -127,6 +133,8 @@ def delete_host():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 
@@ -164,6 +172,8 @@ def get_performance():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
 
 
@@ -177,4 +187,6 @@ def get_jstree():
     # 支持跨域
     response = make_response(jsonify(data))
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST'  
+    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
     return response
