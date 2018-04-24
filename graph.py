@@ -2,25 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from flask import Flask, request, jsonify, make_response
-from functools import wraps
 import rrdtool
 from datetime import datetime
 
 app = Flask(__name__)
 
-def allow_cross_domain(fun):
-    @wraps(fun)
-    def wrapper_fun(*args, **kwargs):
-        rst = make_response(fun(*args, **kwargs))
-        rst.headers['Access-Control-Allow-Origin'] = '*'
-        rst.headers['Access-Control-Allow-Methods'] = 'PUT,GET,POST,DELETE'
-        allow_headers = "Referer,Accept,Origin,User-Agent"
-        rst.headers['Access-Control-Allow-Headers'] = allow_headers
-        return rst
-    return wrapper_funs
-
-@app.route('/api/performance', methods=['GET'])
-@allow_cross_domain
+@app.route('/admin/api/performance', methods=['GET'])
 def get_performance():
     if request.args['host'] and request.args['metric'] and request.args['start'] and request.args['end']:
         host = request.args['host']
@@ -44,7 +31,15 @@ def get_performance():
     else:
         data = {'message': '请求参数异常'}
 
-    return jsonify(data)
+    # return jsonify(data)
+
+    # 支持跨域
+    response = make_response(jsonify(data))
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'PUT,GET,POST,DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Referer,Accept,Origin,User-Agent'
+    return response
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)
