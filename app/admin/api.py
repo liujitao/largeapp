@@ -8,12 +8,24 @@ import config
 from flask import jsonify, request, make_response
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
+from functools import wraps
 import uuid
 import rrdtool
 import os
 
+def allow_cross_domain(fun):
+    @wraps(fun)
+    def wrapper_fun(*args, **kwargs):
+        rst = make_response(fun(*args, **kwargs))
+        rst.headers['Access-Control-Allow-Origin'] = '*'
+        rst.headers['Access-Control-Allow-Methods'] = 'PUT,GET,POST,DELETE'
+        allow_headers = "Referer,Accept,Origin,User-Agent"
+        rst.headers['Access-Control-Allow-Headers'] = allow_headers
+        return rst
+    return wrapper_fun
 
 @bp.route('/api/host', methods=['GET'])
+@allow_cross_domain
 def get_host():
     if request.args:
         if request.args.get('uuid'):
@@ -31,17 +43,11 @@ def get_host():
     else:
         data = {'message': '请求参数异常'}
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
 
 
 @bp.route('/api/host', methods=['POST'])
+@allow_cross_domain
 def add_host():
     if request.json:
         host = Host()
@@ -65,14 +71,7 @@ def add_host():
     else:
         data = {'message': '请求数据异常'}
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
 
 
 @bp.route('/api/host', methods=['PUT'])
@@ -98,14 +97,7 @@ def update_host():
     else:
         data = {'message': '请求数据异常'}
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
 
 
 @bp.route('/api/host', methods=['DELETE'])
@@ -128,14 +120,7 @@ def delete_host():
     else:
         data = {'message': '请求参数异常'}
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
 
 
 @bp.route('/api/performance', methods=['GET'])
@@ -167,26 +152,13 @@ def get_performance():
     else:
         data = {'message': '请求参数异常'}
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
 
 
 @bp.route('/api/jstree', methods=['GET'])
 def get_jstree():
     hosts = Host.query.all()
-    data = [{'id': q.ip, 'parent': '#', 'text': q.name} for q in hosts if q.status==1]
+    data = [{'id': q.ip, 'parent': '#', 'text': q.name}
+            for q in hosts if q.status == 1]
 
-    # return jsonify(data)
-
-    # 支持跨域
-    response = make_response(jsonify(data))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST'  
-    response.headers['Access-Control-Allow-Headers'] = 'x-requested-with,content-type'  
-    return response
+    return jsonify(data)
