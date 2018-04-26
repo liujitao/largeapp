@@ -164,7 +164,7 @@ def get_performance():
 
         # 读取rrd数据文件
         try:
-            time_range, none, values = rrdtool.fetch(str(rrd_file), 'AVERAGE', '--resolution', str(resolution), '--start', str(start), '--end', str(end), '--align-start', '--daemon', 'unix:/var/run/rrdcached.sock')
+            time_range, none, values = rrdtool.fetch(str(rrd_file), 'AVERAGE', '--resolution', str(resolution), '--start', str(start), '--end', str(end), '--daemon', 'unix:/var/run/rrdcached.sock')
 
             # 生成数据
             timestamps = [i for i in range(time_range[0], time_range[1], time_range[2])]

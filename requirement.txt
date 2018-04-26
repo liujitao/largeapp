@@ -1,5 +1,5 @@
 flask
 flask-sqlalchemy
 pycrypto
-rrdtool
+rrdtool=0.1.12
 gunicorn

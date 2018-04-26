@@ -134,9 +134,9 @@
     // 性能图区域
     function draw_chart_area(host, delta, start_time, end_time) {
       // 接口
-      // var url = 'http://127.0.0.1:5002/api/performance';
+      //var url = 'http://10.0.70.103:5002/admin/api/performance';
       var url = '/admin/api/performance';
-      
+
       // 性能项
       var perf = [
         { id: 'clients', title: '客户端连接数', yaxis: '', item: ['gauge-connected_clients', 'gauge-blocked_clients'] },
@@ -146,6 +146,7 @@
         { id: 'processed', title: '命令处理总量', yaxis: '', item: ['counter-commands_processed'] },
         { id: 'keys', title: 'keys', yaxis: '', item: ['counter-expired_keys', 'counter-evicted_keys'] },
         { id: 'keyspace', title: 'keyspace', yaxis: '', item: ['derive-keyspace_hits', 'derive-keyspace_misses'] },
+        { id: 'commandstats', title: 'commandstats', yaxis: '', item: ['counter-cmdstat_get_calls', 'counter-cmdstat_set_calls','counter-cmdstat_scan_calls' ] },
       ];
 
       // 画图
