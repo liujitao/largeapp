@@ -8,7 +8,6 @@
 <script src="{{ url_for('static', filename='moment.min.js' )}}"></script>
 <script src="{{ url_for('static', filename='Chart.min.js' )}}"></script>
 
-
 <div class="col-md-2" id="jstree"></div>
 <!-- 导航树 -->
 <div class="col-md-10">
@@ -21,12 +20,13 @@
 <script>
   $(function () {
     // 导航树事件
+    var jstree_url = '/admin/api/jstree?group_id='+{{ id }};
     $('#jstree').jstree({
       plugins: ['sort', 'types'],
       types: { 'default': { 'icon': 'glyphicon glyphicon-flash' } },
       core: {
         data: {
-          url: '/admin/api/jstree', data: function (node) { return { 'id': node.id } },
+          url: jstree_url, data: function (node) { return { 'id': node.id } },
           /*dataFilter: function (data, type) { // 数据进行渲染 var tmp = JSON.parse(data); return JSON.stringify(tmp)}}*/
         }
       }

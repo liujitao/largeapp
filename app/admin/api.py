@@ -138,7 +138,7 @@ def delete_host():
 
 @bp.route('/api/jstree', methods=['GET'])
 def get_jstree():
-    hosts = Host.query.all()
+    hosts = Host.query.filter(Host.group_id==request.args['group_id']).all()
     data = [{'id': q.ip, 'parent': '#', 'text': q.name}
             for q in hosts if q.status == 1]
 

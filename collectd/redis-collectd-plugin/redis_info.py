@@ -32,184 +32,134 @@
 import collectd
 import socket
 import re
-from redis_client import RedisClient, RedisError
+
+# Verbose logging on/off. Override in config by specifying 'Verbose'.
+VERBOSE_LOGGING = False
+
+CONFIGS = []
 
 
-class RedisCollector():
-    def __init__(self, host, port, auth, instance, metric_types, verbose, llen_keys):
-        self.host = host
-        self.port = port
-        self.auth = auth
-        self.instance = instance
-        self.metric_types = metric_types
-        self.verbose = verbose
-        self.llen_keys = llen_keys
+def fetch_info(conf):
+    """Connect to Redis server and request info"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((conf['host'], conf['port']))
+        log_verbose('Connected to Redis at %s:%s' % (conf['host'], conf['port']))
+    except socket.error, e:
+        collectd.error('redis_info plugin: Error connecting to %s:%d - %r'
+                       % (conf['host'], conf['port'], e))
+        return None
 
-    def fetch_info(self, client):
-        """Request info from the Redis server"""
-        self.log_verbose('Sending info command')
-        client.send('info')
-        try:
-            data = client.read_response()
-        except RedisError, e:
-            collectd.error('redis_info plugin: Error response from %s:%d - %r'
-                           % (self.host, self.port, e))
+    fp = s.makefile('r')
+
+    if conf['auth'] is not None:
+        log_verbose('Sending auth command')
+        s.sendall('auth %s\r\n' % (conf['auth']))
+
+        status_line = fp.readline()
+        if not status_line.startswith('+OK'):
+            # -ERR invalid password
+            # -ERR Client sent AUTH, but no password is set
+            collectd.error('redis_info plugin: Error sending auth to %s:%d - %r'
+                           % (conf['host'], conf['port'], status_line))
             return None
 
-        self.log_verbose('Received data: %s' % data)
+    log_verbose('Sending info command')
+    s.sendall('info\r\n')
 
-        linesep = '\r\n' if '\r\n' in data else '\n'
-        info_dict = self.parse_info(data.split(linesep))
+    status_line = fp.readline()
 
-        return info_dict
+    if status_line.startswith('-'):
+        collectd.error('redis_info plugin: Error response from %s:%d - %r'
+                       % (conf['host'], conf['port'], status_line))
+        s.close()
+        return None
 
-    def parse_info(self, info_lines):
-        """Parse info response from Redis"""
-        info = {}
-        for line in info_lines:
-            if "" == line or line.startswith('#'):
-                continue
+    content_length = int(status_line[1:-1])  # status_line looks like: $<content_length>
+    data = fp.read(content_length)
+    log_verbose('Received data: %s' % data)
 
-            if ':' not in line:
-                collectd.warning('redis_info plugin: Bad format for info line: %s'
-                                 % line)
-                continue
+    # process 'info commandstats'
+    log_verbose('Sending info commandstats command')
+    s.sendall('info commandstats\r\n')
+    fp.readline()  # skip first line in the response because it is empty
+    status_line = fp.readline()
+    log_verbose('Received line: %s' % status_line)
+    content_length = int(status_line[1:-1])  # status_line looks like: $<content_length>
+    datac = fp.read(content_length)  # fetch commandstats to different data buffer
+    log_verbose('Received data: %s' % datac)
+    
+    # process 'cluster info'
+    if conf['cluster']:
+      log_verbose('Sending cluster info command')
+      s.sendall('cluster info\r\n')
+      fp.readline()  # skip first line in the response because it is empty
+      status_line = fp.readline()
+      log_verbose('Received line: %s' % status_line)
+      content_length = int(status_line[1:-1])  # status_line looks like: $<content_length>
+      datacluster = fp.read(content_length)  # fetch cluster info to different data buffer
+      log_verbose('Received data: %s' % datacluster)
 
-            key, val = line.split(':')
+    s.close()
 
-            # Handle multi-value keys (for dbs and slaves).
-            # db lines look like "db0:keys=10,expire=0"
-            # slave lines look like
-            # "slave0:ip=192.168.0.181,port=6379,
-            #  state=online,offset=1650991674247,lag=1"
-            if ',' in val:
-                split_val = val.split(',')
-                for sub_val in split_val:
-                    k, _, v = sub_val.rpartition('=')
-                    sub_key = "{0}_{1}".format(key, k)
-                    info[sub_key] = v
-            else:
-                info[key] = val
+    linesep = '\r\n' if '\r\n' in data else '\n'  # assuming all is done in the same connection...
+    data_dict = parse_info(data.split(linesep))
+    datac_dict = parse_info(datac.split(linesep))
+    if conf['cluster']:
+      datacluster_dict = parse_info(datacluster.split(linesep))
 
-        # compatibility with pre-2.6 redis (used changes_since_last_save)
-        info["changes_since_last_save"] = info.get("changes_since_last_save",
-                                                   info.get(
-                                                    "rdb_changes_since_last_save"))
+    # let us see more raw data just in case
+    log_verbose('Data: %s' % len(data_dict))
+    log_verbose('Datac: %s' % len(datac_dict))
+    if conf['cluster']:
+      log_verbose('Datacluster: %s' % len(datacluster_dict))
 
-        return info
+    # merge three data sets into one
+    data_full = data_dict.copy()
+    data_full.update(datac_dict)
+    if conf['cluster']:
+      data_full.update(datacluster_dict)
 
-    def dispatch_info(self, client):
-        info = self.fetch_info(client)
+    log_verbose('Data Full: %s' % len(data_full))
 
-        if not info:
-            collectd.error('redis plugin: No info received')
-            return
+    # this generates hundreds of lines but helps in debugging a lot
+    if VERBOSE_LOGGING:
+        for key in data_full:
+            log_verbose('Data Full detail: %s = %s' % (key, data_full[key]))
 
-        for keyTuple, val in self.metric_types.iteritems():
-            key, mtype = keyTuple
-            if key == 'total_connections_received' and mtype == 'counter':
-                self.dispatch_value(info['total_connections_received'],
-                               'counter',
-                               type_instance='connections_received')
-            elif key == 'total_commands_processed' and mtype == 'counter':
-                self.dispatch_value(info['total_commands_processed'],
-                               'counter',
-                               type_instance='commands_processed')
-            else:
-                self.dispatch_value(info[key], mtype, type_instance=key)
+    return data_full
 
-    def dispatch_list_lengths(self, client):
-        """
-        For each llen_key specified in the config file,
-        grab the length of that key from the corresponding
-        database index.
-        """
-        key_dict = {}
-        for db, patterns in self.llen_keys.items():
-            client.send('select %d' % db)
-            try:
-                resp = client.read_response()
-            except RedisError, e:
-                collectd.error("Could not select Redis db %s: %s" % (db, e))
-                continue
 
-            for pattern in patterns:
-                keys = []
-                # If there is a glob, get every key matching it
-                if '*' in pattern:
-                    client.send('KEYS %s' % pattern)
-                    keys = client.read_response()
-                else:
-                    keys = [pattern]
+def parse_info(info_lines):
+    """Parse info response from Redis"""
+    info = {}
+    for line in info_lines:
+        if "" == line or line.startswith('#'):
+            continue
 
-                for key in keys:
-                    self.fetch_and_dispatch_llen_for_key(client, key, db)
+        if ':' not in line:
+            collectd.warning('redis_info plugin: Bad format for info line: %s'
+                             % line)
+            continue
 
-    def fetch_and_dispatch_llen_for_key(self, client, key, db):
-        client.send('llen %s' % key)
-        try:
-            val = client.read_response()
-        except RedisError, e:
-            collectd.warning('redis_info plugin: could not get length of key %s in db %s: %s' % (key, db, e))
-            return
+        key, val = line.split(':')
 
-        dimensions = {'key_name': key, 'db_index': db}
-        self.dispatch_value(val, 'gauge', type_instance='key_llen', dimensions=dimensions)
+        # Handle multi-value keys (for dbs and slaves).
+        # db lines look like "db0:keys=10,expire=0"
+        # slave lines look like "slave0:ip=192.168.0.181,port=6379,state=online,offset=1650991674247,lag=1"
+        if ',' in val:
+            split_val = val.split(',')
+            for sub_val in split_val:
+                k, _, v = sub_val.rpartition('=')
+                sub_key = "{0}_{1}".format(key, k)
+                info[sub_key] = v
+        else:
+            info[key] = val
 
-    def dispatch_value(self, value, type, plugin_instance=None, type_instance=None,
-                       dimensions={}):
-        """Read a key from info response data and dispatch a value"""
+    # compatibility with pre-2.6 redis (used changes_since_last_save)
+    info["changes_since_last_save"] = info.get("changes_since_last_save", info.get("rdb_changes_since_last_save"))
 
-        try:
-            value = int(value)
-        except ValueError:
-            value = float(value)
-
-        self.log_verbose('Sending value: %s=%s (%s)' % (type_instance, value, dimensions))
-
-        val = collectd.Values(plugin='redis_info')
-        val.type = type
-        val.type_instance = type_instance
-        val.values = [value]
-
-        plugin_instance = self.instance
-        if plugin_instance is None:
-            plugin_instance = '{host}:{port}'.format(host=self.host,
-                                                     port=self.port)
-
-        val.plugin_instance = "{0}{1}".format(plugin_instance, _format_dimensions(dimensions))
-
-        # With some versions of CollectD, a dummy metadata map must be added
-        # to each value for it to be correctly serialized to JSON by the
-        # write_http plugin. See
-        # https://github.com/collectd/collectd/issues/716
-        val.meta = {'0': True}
-        val.dispatch()
-
-    def read_callback(self):
-        try:
-            self.get_metrics()
-        except socket.error, e:
-            collectd.error('redis_info plugin: Error connecting to %s:%d - %r'
-                           % (self.host, self.port, e))
-            return
-        except RedisError, e:
-            collectd.error('redis_info plugin: Error getting metrics from %s:%d - %r'
-                           % (self.host, self.port, e))
-            return
-
-    def get_metrics(self):
-        with RedisClient(self.host, self.port, self.auth) as client:
-            self.log_verbose('Connected to Redis at %s:%s' % (self.host, self.port))
-
-            self.dispatch_info(client)
-            self.dispatch_list_lengths(client)
-
-    def log_verbose(self, msg):
-        if not self.verbose:
-            return
-        collectd.info('redis plugin [verbose]: %s' % msg)
-
+    return info
 
 
 def configure_callback(conf):
@@ -217,15 +167,15 @@ def configure_callback(conf):
     host = None
     port = None
     auth = None
+    cluster = True
     instance = None
-    llen_keys = {}
-    metric_types = {}
-    verbose = False
+    redis_info = {}
 
     for node in conf.children:
         key = node.key.lower()
         val = node.values[0]
-        searchObj = re.search(r'redis_(.*)$', key, re.M | re.I)
+        log_verbose('Analyzing config %s key (value: %s)' % (key, val))
+        searchObj = re.search(r'redis_(.*)$', key, re.M|re.I)
 
         if key == 'host':
             host = val
@@ -233,59 +183,90 @@ def configure_callback(conf):
             port = int(val)
         elif key == 'auth':
             auth = val
+        elif key == 'cluster':
+            cluster = bool(node.values[0])
         elif key == 'verbose':
-            verbose = node.values[0]
+            global VERBOSE_LOGGING
+            VERBOSE_LOGGING = bool(node.values[0]) or VERBOSE_LOGGING
         elif key == 'instance':
             instance = val
-        elif key == 'sendlistlength':
-            if (len(node.values)) == 2:
-                llen_keys.setdefault(int(node.values[0]), []).append(node.values[1])
-            else:
-                collectd.warning("redis_info plugin: monitoring length of keys requires both \
-                                    database index and key value")
-
         elif searchObj:
-            metric_types[searchObj.group(1), val] = True
+            log_verbose('Matching expression found: key: %s - value: %s' % (searchObj.group(1), val))
+            redis_info[searchObj.group(1), val] = True
         else:
-            collectd.warning('redis_info plugin: Unknown config key: %s.' %
-                             key)
+            collectd.warning('redis_info plugin: Unknown config key: %s.' % key)
             continue
 
-    if verbose:
-        collectd.info('Configured with host=%s, port=%s, instance name=%s, using_auth=%s, llen_keys=%s'
-            % (host, port, instance, (auth is not None), llen_keys))
+    log_verbose('Configured with host=%s, port=%s, instance name=%s, using_auth=%s, cluster=%s, redis_info_len=%s' % (host, port, instance, auth!=None, cluster, len(redis_info)))
 
-    collector = RedisCollector(**{
-        'host': host,
-        'port': port,
-        'auth': auth,
-        'instance': instance,
-        'metric_types': metric_types,
-        'verbose': verbose,
-        'llen_keys': llen_keys})
-
-    collectd.register_read(collector.read_callback, name="%s:%s:%s" % (host, port, instance))
+    CONFIGS.append({'host': host, 'port': port, 'auth': auth, 'instance': instance, 'cluster': cluster, 'redis_info': redis_info})
 
 
-def _format_dimensions(dimensions):
-    """
-    Formats a dictionary of dimensions to a format that enables them to be
-    specified as key, value pairs in plugin_instance to signalfx. E.g.
-    >>> dimensions = {'a': 'foo', 'b': 'bar'}
-    >>> _format_dimensions(dimensions)
-    "[a=foo,b=bar]"
-    Args:
-    dimensions (dict): Mapping of {dimension_name: value, ...}
-    Returns:
-    str: Comma-separated list of dimensions
-    """
-    if not dimensions:
-        return ""
+def dispatch_value(info, key, type, plugin_instance=None, type_instance=None):
+    """Read a key from info response data and dispatch a value"""
 
-    dim_pairs = ["%s=%s" % (k, v) for k, v in dimensions.iteritems()]
-    return "[%s]" % (",".join(dim_pairs))
+    if key not in info:
+        collectd.warning('redis_info plugin: Info key not found: %s, Instance: %s' % (key, plugin_instance))
+        return
 
+    if plugin_instance is None:
+        plugin_instance = 'unknown redis'
+        collectd.error('redis_info plugin: plugin_instance is not set, Info key: %s' % key)
+
+    if not type_instance:
+        type_instance = key
+
+    try:
+        value = int(info[key])
+    except ValueError:
+        value = float(info[key])
+    except TypeError:
+        log_verbose('No info for key: %s' % key)
+        return
+
+    log_verbose('Sending value: %s=%s' % (type_instance, value))
+
+    val = collectd.Values(plugin='redis_info')
+    val.type = type
+    val.type_instance = type_instance
+    val.plugin_instance = plugin_instance
+    val.values = [value]
+    val.dispatch()
+
+
+def read_callback():
+    for conf in CONFIGS:
+        get_metrics(conf)
+
+
+def get_metrics(conf):
+    info = fetch_info(conf)
+
+    if not info:
+        collectd.error('redis plugin: No info received')
+        return
+
+    plugin_instance = conf['instance']
+    if plugin_instance is None:
+        plugin_instance = '{host}:{port}'.format(host=conf['host'], port=conf['port'])
+
+    for keyTuple, val in conf['redis_info'].iteritems():
+        key, val = keyTuple
+
+        if key == 'total_connections_received' and val == 'counter':
+            dispatch_value(info, 'total_connections_received', 'counter', plugin_instance, 'connections_received')
+        elif key == 'total_commands_processed' and val == 'counter':
+            dispatch_value(info, 'total_commands_processed', 'counter', plugin_instance, 'commands_processed')
+        else:
+            dispatch_value(info, key, val, plugin_instance)
+
+
+def log_verbose(msg):
+    if not VERBOSE_LOGGING:
+        return
+    collectd.info('redis plugin [verbose]: %s' % msg)
 
 
 # register callbacks
 collectd.register_config(configure_callback)
+collectd.register_read(read_callback)

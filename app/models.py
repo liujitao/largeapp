@@ -22,6 +22,7 @@ class Host(Base):
     password_hash = db.Column(db.String(128))
     status = db.Column(db.Integer, default=0)
     last_check_time = db.Column(db.DateTime)
+    group_id = db.Column(db.Integer)
 
     @property
     def password(self):
