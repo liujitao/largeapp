@@ -8,6 +8,7 @@
 <script src="{{ url_for('static', filename='moment.min.js' )}}"></script>
 <script src="{{ url_for('static', filename='Chart.min.js' )}}"></script>
 
+
 <div class="col-md-2" id="jstree"></div>
 <!-- 导航树 -->
 <div class="col-md-10">
@@ -20,7 +21,7 @@
 <script>
   $(function () {
     // 导航树事件
-    var jstree_url = '/admin/api/jstree?group_id='+{{ id }};
+    var jstree_url = '/admin/api/jstree?group_id=' + {{ id }};
     $('#jstree').jstree({
       plugins: ['sort', 'types'],
       types: { 'default': { 'icon': 'glyphicon glyphicon-flash' } },
@@ -134,19 +135,23 @@
     // 性能图区域
     function draw_chart_area(host, delta, start_time, end_time) {
       // 接口
-      //var url = 'http://10.0.70.103:5002/admin/api/performance';
+      //var url = 'http://127.0.0.1:5002/admin/api/performance';
       var url = '/admin/api/performance';
-
+      
       // 性能项
       var perf = [
+        { id: 'redis_alive', title: 'redis状态(0:dead, 1:master, -1:slave)', yaxis: '', item: ['gauge-redis_alive'] },
+        { id: 'sentinel_alive', title: '哨兵状态(0:dead, 1:leader, -1:slave)', yaxis: '', item: ['gauge-sentinel_alive'] },
         { id: 'clients', title: '客户端连接数', yaxis: '', item: ['gauge-connected_clients', 'gauge-blocked_clients'] },
-        { id: 'memory', title: '内存使用量', yaxis: 'Byte', item: ['bytes-used_memory', 'bytes-used_memory_rss'] },
+        { id: 'memory', title: '内存使用量', yaxis: 'Byte', item: ['gauge-used_memory', 'gauge-used_memory_rss', 'gauge-maxmemory'] },
         { id: 'fragmentation', title: '内存碎片率', yaxis: '%', item: ['gauge-mem_fragmentation_ratio'] },
+        { id: 'memory_ratio', title: '内存使用率', yaxis: '%', item: ['gauge-mem_used_ratio'] },
         { id: 'instantaneous', title: '每秒处理指令数', yaxis: '', item: ['gauge-instantaneous_ops_per_sec'] },
-        { id: 'processed', title: '命令处理总量', yaxis: '', item: ['counter-commands_processed'] },
+        { id: 'processed', title: '每秒处理命令数', yaxis: '', item: ['counter-total_commands_processed'] },
         { id: 'keys', title: 'keys', yaxis: '', item: ['counter-expired_keys', 'counter-evicted_keys'] },
         { id: 'keyspace', title: 'keyspace', yaxis: '', item: ['derive-keyspace_hits', 'derive-keyspace_misses'] },
-        { id: 'commandstats', title: 'commandstats', yaxis: '', item: ['counter-cmdstat_get_calls', 'counter-cmdstat_set_calls','counter-cmdstat_scan_calls' ] },
+        { id: 'db0', title: 'db0', yaxis: '', item: ['gauge-db0_keys', 'gauge-db0_expires'] },
+        { id: 'commandstats', title: 'commandstats', yaxis: '', item: ['counter-cmdstat_get_calls', 'counter-cmdstat_set_calls' ] },
       ];
 
       // 画图
@@ -166,9 +171,12 @@
 
         var unit, resolution;
 
-        if (delta <= 3600 * 3) { // 3小时以下
-          unit = 'minute';
-          resolution = 60 * 5;
+        if (delta <= 3600 * 1) { // 1小时以下
+            unit = 'minute';
+            resolution = 60;
+        } else if (delta <= 3600 * 3) { // 3小时以下
+            unit = 'minute';
+            resolution = 60 * 5;
         } else if (delta > 3600 * 3 && delta <= 3600 * 24) {  // 3-24小时
           unit = 'hour';
           resolution = 60 * 30;
@@ -203,7 +211,7 @@
               display: true,
             }],
             yAxes: [{
-              stacked: true,
+              stacked: false,
               display: true,
               scaleLabel: {
                 display: true,
@@ -251,7 +259,6 @@
 
           datasets.push(tmp);
         });
-
         var chart = new Chart(ctx, {
           type: 'line',
           options: options,

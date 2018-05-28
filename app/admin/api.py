@@ -168,7 +168,7 @@ def get_performance():
 
             # 生成数据
             timestamps = [i for i in range(time_range[0], time_range[1], time_range[2])]
-            data = [i for i in map(lambda x, y: {'x': datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S'), 'y': y[0]}, timestamps, values)]
+            data = [i for i in map(lambda x, y: {'x': datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S'), 'y': round(y[0], 2) if y[0] else y[0]}, timestamps, values)]
         except rrdtool.OperationalError:
             data = {'message': '请求数据异常'}
 

@@ -21,8 +21,8 @@ class Host(Base):
     port = db.Column(db.String(5))
     password_hash = db.Column(db.String(128))
     status = db.Column(db.Integer, default=0)
-    last_check_time = db.Column(db.DateTime)
     group_id = db.Column(db.Integer)
+    last_check_time = db.Column(db.DateTime)
 
     @property
     def password(self):
