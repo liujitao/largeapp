@@ -42,7 +42,7 @@ def fetch_redis_info(conf):
 
     # 获取redis状态信息(0 dead, 1 master, -1 slave)
     try:
-        r = redis.Redis(host=conf['host'], port=conf['port'], password=conf['password'])
+        r = redis.Redis(host=conf['host'], port=conf['port'], password=conf['password'], socket_connect_timeout=5)
         for k, v in r.info().items():
             if k in conf['redis_info'].keys():
                info[k] = v
@@ -85,6 +85,7 @@ def read_callback():
     for conf in CONFIG:
         info = fetch_redis_info(conf)
 
+        #collectd.info('[%s] %s' % (conf['host'], json.dumps(info)))
         plugin_instance = '%s:%d' % (conf['host'], conf['port'])
         for k, v in info.items():
             if k in conf['redis_info'].keys():
